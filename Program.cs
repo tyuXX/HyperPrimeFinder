@@ -1,7 +1,6 @@
-﻿using System.Diagnostics;
+﻿using System.Collections;
+using System.Diagnostics;
 using System.Numerics;
-
-
 
 Console.WriteLine( "Enter the limit for finding prime numbers:" );
 
@@ -25,7 +24,6 @@ while (true)
         Console.WriteLine( "Please enter a valid number greater than or equal to 2." );
     }
 }
-
 static void LogS( BigInteger limit )
 {
     var primes = SegmentedSieve( limit );
@@ -33,30 +31,30 @@ static void LogS( BigInteger limit )
     Console.WriteLine( $"Found: {primes.Item1.Count:N0}" );
     Console.WriteLine( $"Elapsed time: {primes.Item2}\n" );
 }
-
 static (HashSet<BigInteger>, TimeSpan) SegmentedSieve( BigInteger limit )
 {
     Stopwatch sw = Stopwatch.StartNew();
-    BigInteger segmentSize = (BigInteger)int.MaxValue; // Segment size is within the int array limit
-    BigInteger numSegments = (limit + segmentSize - 1) / segmentSize; // Number of segments needed
-    HashSet<BigInteger> primes = [];
+    BigInteger segmentSize = BigIntegerSqrt(limit); // Segment size
+    BigInteger numSegments = (limit + segmentSize - 1) / segmentSize; // Number of segments
+    HashSet<BigInteger> primes = []; // Store found primes
     // Simple sieve for small primes up to sqrt(limit)
+    HashSet<BigInteger> smallPrimes;
     BigInteger sqrtLimit = BigIntegerSqrt( limit ) + 1;
-    HashSet<BigInteger> smallPrimes = SieveOfEratosthenes( sqrtLimit );
-    // Process each segment
-    for (BigInteger seg = 0; seg < numSegments; seg++)
+    if(sqrtLimit >= int.MaxValue) smallPrimes = SieveOfEratosthenes( int.MaxValue );
+    else smallPrimes = SieveOfEratosthenes( (int)sqrtLimit );
+    // Process each segment in parallel using Parallel.For
+    Parallel.For( 0, (int)numSegments, seg =>
     {
         BigInteger low = seg * segmentSize;
         BigInteger high = BigInteger.Min( (seg + 1) * segmentSize - 1, limit );
-        bool[] isPrimeSegment = new bool[(int)(high - low + 1)];
-        for (int i = 0; i < isPrimeSegment.Length; i++)
-        {
-            isPrimeSegment[i] = true;
-        }
-        // Mark non-primes in the current segment using small primes
+        BitArray isPrimeSegment = new( (int)(high - low + 1), true );
+        // Mark multiples of small primes in the current segment
         foreach (BigInteger p in smallPrimes)
         {
-            BigInteger start = BigInteger.Max( p * p, (low + p - 1) / p * p );
+            if (p * p > high) break; // No need to mark multiples for larger primes
+
+            BigInteger start = (low + p - 1) / p * p;
+            if (start < p * p) start = p * p;
 
             for (BigInteger multiple = start; multiple <= high; multiple += p)
             {
@@ -64,37 +62,40 @@ static (HashSet<BigInteger>, TimeSpan) SegmentedSieve( BigInteger limit )
             }
         }
         // Collect primes in the current segment
-        for (BigInteger i = low; i <= high; i++)
+        lock (primes) // Ensure thread safety when updating the primes HashSet
         {
-            if (i > 1 && isPrimeSegment[(int)(i - low)])
+            for (BigInteger i = low; i <= high; i++)
             {
-                primes.Add( i );
+                if (i > 1 && isPrimeSegment[(int)(i - low)])
+                {
+                    primes.Add( i );
+                }
             }
         }
-    }
+    } );
     return (primes, sw.Elapsed);
 }
-static HashSet<BigInteger> SieveOfEratosthenes( BigInteger limit )
+static HashSet<BigInteger> SieveOfEratosthenes( int limit )
 {
-    bool[] isPrime = new bool[(int)limit + 1];
-    for (BigInteger i = 2; i <= limit; i++)
+    BitArray isPrime = new(limit + 1);
+    for (int i = 2; i <= limit; i++)
     {
-        isPrime[(int)i] = true;
+        isPrime[i] = true;
     }
-    for (BigInteger p = 2; p * p <= limit; p++)
+    for (int p = 2; p * p <= limit; p++)
     {
-        if (isPrime[(int)p])
+        if (isPrime[p])
         {
-            for (BigInteger multiple = p * p; multiple <= limit; multiple += p)
+            for (int multiple = p * p; multiple <= limit; multiple += p)
             {
-                isPrime[(int)multiple] = false;
+                isPrime[multiple] = false;
             }
         }
     }
     HashSet<BigInteger> primes = [];
-    for (BigInteger i = 2; i <= limit; i++)
+    for (int i = 2; i <= limit; i++)
     {
-        if (isPrime[(int)i])
+        if (isPrime[i])
         {
             primes.Add( i );
         }
@@ -107,9 +108,7 @@ static BigInteger BigIntegerSqrt( BigInteger n )
     {
         return n;
     }
-
     BigInteger low = 0, high = n, mid;
-
     while (low <= high)
     {
         mid = (low + high) / 2;
@@ -117,9 +116,9 @@ static BigInteger BigIntegerSqrt( BigInteger n )
 
         if (midSquared == n)
         {
-            return mid; // Perfect square
+            return mid;
         }
-        else if (midSquared < n)
+        if (midSquared < n)
         {
             low = mid + 1;
         }
@@ -128,7 +127,5 @@ static BigInteger BigIntegerSqrt( BigInteger n )
             high = mid - 1;
         }
     }
-
-    // When the loop exits, high is the closest approximation
     return high;
 }
