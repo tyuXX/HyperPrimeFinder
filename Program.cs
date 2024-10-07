@@ -29,8 +29,8 @@ while (true)
 static void LogS( BigInteger limit )
 {
     var primes = SegmentedSieve( limit );
-    Console.WriteLine( $"Prime numbers up to {limit}:" );
-    Console.WriteLine( $"Found: {primes.Item1.Count}" );
+    Console.WriteLine( $"Prime numbers up to {limit:N0}:" );
+    Console.WriteLine( $"Found: {primes.Item1.Count:N0}" );
     Console.WriteLine( $"Elapsed time: {primes.Item2}\n" );
 }
 
