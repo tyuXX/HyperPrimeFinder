@@ -3,16 +3,6 @@ using System.Diagnostics;
 using System.Numerics;
 
 Console.WriteLine( "Enter the limit for finding prime numbers:" );
-
-LogS( 10 );
-LogS( 100 );
-LogS( 1_000 );
-LogS( 10_000 );
-LogS( 100_000 );
-LogS( 1_000_000 );
-LogS( 10_000_000 );
-LogS( 100_000_000 );
-
 while (true)
 {
     if (BigInteger.TryParse( Console.ReadLine(), out BigInteger limit ) && limit >= 2)
